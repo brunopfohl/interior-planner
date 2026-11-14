@@ -12,11 +12,18 @@ services:
       PGDATABASE: interior_planner
       PGUSER: interior_planner
       PGPASSWORD: ${POSTGRES_PASSWORD:?Copy .env.example to .env and set POSTGRES_PASSWORD}
+      AGENT_TOKEN: ${AGENT_TOKEN:-}
     depends_on:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "bun", "-e", "const r = await fetch('http://localhost:3000/health'); process.exit(r.ok ? 0 : 1)"]
+      test:
+        [
+          "CMD",
+          "bun",
+          "-e",
+          "const r = await fetch('http://localhost:3000/health'); process.exit(r.ok ? 0 : 1)",
+        ]
       interval: 10s
       timeout: 5s
       start_period: 10s
@@ -32,7 +39,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      test: ["CMD-SHELL", 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
       interval: 5s
       timeout: 5s
       retries: 10

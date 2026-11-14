@@ -3,6 +3,7 @@ WORKDIR /app
 COPY package.json bun.lock ./
 COPY apps/web/package.json ./apps/web/package.json
 COPY packages/db/package.json ./packages/db/package.json
+COPY packages/shared/package.json ./packages/shared/package.json
 RUN bun install --frozen-lockfile
 
 FROM dependencies AS development
@@ -13,7 +14,7 @@ EXPOSE 3000
 CMD ["bun", "run", "dev"]
 
 FROM development AS build
-RUN bun run check && bun run build
+RUN bun run check && bun run test && bun run build
 
 FROM oven/bun:1.4.4-slim AS runtime
 WORKDIR /app

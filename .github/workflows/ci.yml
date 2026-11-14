@@ -13,11 +13,16 @@ jobs:
       - name: Build and start the stack
         run: |
           cp .env.example .env
+          echo "AGENT_TOKEN=$(openssl rand -hex 32)" >> .env
           docker compose up --build --wait --wait-timeout 120
       - name: Verify HTTP and database readiness
         run: |
           curl --fail http://localhost:3000/
           curl --fail http://localhost:3000/health
+      - name: Verify interior and agent queue lifecycle
+        run: |
+          docker compose cp scripts/smoke.ts web:/tmp/interior-smoke.ts
+          docker compose exec -T -e AGENT_API_URL=http://localhost:3000 web bun /tmp/interior-smoke.ts
       - name: Container logs
         if: failure()
         run: docker compose logs

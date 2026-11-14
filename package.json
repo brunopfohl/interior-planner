@@ -3,11 +3,16 @@
   "private": true,
   "type": "module",
   "packageManager": "bun@1.4.4",
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev": "bun run --filter @interior-planner/web dev",
     "build": "bun run --filter @interior-planner/web build",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "test": "bun test packages/shared/src",
+    "agent": "bun scripts/agent.ts"
   },
   "devDependencies": {
     "@types/bun": "1.4.4",

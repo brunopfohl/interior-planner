@@ -4,9 +4,25 @@
   "type": "module",
   "scripts": {
     "dev": "bun --hot src/index.ts",
-    "build": "bun build src/index.ts --target=bun --production --minify --outdir=dist"
+    "build": "bun run build.ts"
   },
   "dependencies": {
-    "@interior-planner/db": "workspace:*"
+    "@interior-planner/db": "workspace:*",
+    "@interior-planner/shared": "workspace:*",
+    "bun-plugin-tailwind": "^0.1.2",
+    "class-variance-authority": "^0.7.1",
+    "cn": "^0.5.2",
+    "lucide-react": "^1.73.0",
+    "radix-ui": "^1.8.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "tailwindcss": "^4.3.5",
+    "three": "^0.187.0",
+    "tw-animate-css": "^1.4.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/three": "^0.187.0"
   }
 }

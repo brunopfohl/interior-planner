@@ -1,14 +1,19 @@
 import { db } from "@interior-planner/db";
 import homepage from "./index.html";
+import { migrate } from "@interior-planner/db/schema";
+import { handleApi } from "./api";
 
 await db`SELECT 1`;
+await migrate();
 
 const server = Bun.serve({
   hostname: "0.0.0.0",
   port: Number(Bun.env.PORT ?? 3000),
   development: Bun.env.NODE_ENV !== "production",
+  maxRequestBodySize: 1_048_576,
   routes: {
     "/": homepage,
+    "/interiors/*": homepage,
     "/health": async () => {
       try {
         await db`SELECT 1`;
@@ -18,7 +23,8 @@ const server = Bun.serve({
       }
     },
   },
-  fetch() {
+  fetch(req) {
+    if (new URL(req.url).pathname.startsWith("/api/")) return handleApi(req);
     return new Response("Not found", { status: 404 });
   },
 });

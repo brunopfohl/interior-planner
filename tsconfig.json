@@ -4,11 +4,18 @@
     "lib": ["ESNext", "DOM"],
     "module": "Preserve",
     "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "paths": { "@/*": ["./apps/web/src/*"] },
     "types": ["bun"],
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noEmit": true,
     "skipLibCheck": true
   },
-  "include": ["apps/**/*.ts", "packages/**/*.ts"]
+  "include": [
+    "apps/**/*.ts",
+    "apps/**/*.tsx",
+    "packages/**/*.ts",
+    "scripts/**/*.ts"
+  ]
 }

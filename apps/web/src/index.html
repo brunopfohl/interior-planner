@@ -3,12 +3,23 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <base href="/" />
     <title>Interior Planner</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script>
+      try {
+        const theme = localStorage.getItem("interior-theme") || "light";
+        document.documentElement.classList.toggle(
+          "dark",
+          theme === "dark" ||
+            (theme === "system" &&
+              matchMedia("(prefers-color-scheme: dark)").matches),
+        );
+      } catch {}
+    </script>
   </head>
   <body>
-    <main>
-      <h1>Interior Planner</h1>
-      <p>A foundation for planning interiors.</p>
-    </main>
+    <div id="root"></div>
+    <script type="module" src="./client.tsx"></script>
   </body>
 </html>

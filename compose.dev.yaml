@@ -6,3 +6,4 @@ services:
     volumes:
       - ./apps/web/src:/app/apps/web/src:ro
       - ./packages/db/src:/app/packages/db/src:ro
+      - ./packages/shared/src:/app/packages/shared/src:ro
