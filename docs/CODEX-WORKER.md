@@ -6,6 +6,26 @@ result. There is no simulated agent and no automatic model call in the web serve
 Connect any Codex session that can run these commands or call the HTTP endpoints.
 No OpenAI API key is needed by the application itself.
 
+## Run a persistent local worker
+
+With the app running, `AGENT_TOKEN` configured in `.env`, Bun installed, and the
+Codex CLI already logged in, open a separate terminal in this repository and run:
+
+```sh
+bun run worker
+```
+
+The worker polls every five seconds and invokes `codex exec` for each claimed
+task using your existing Codex login and default model. It automatically renews
+the lease, validates the result, and submits the scene. Codex receives only the
+design snapshot and geometry contract; the queue secret is removed from its
+environment. Generation runs in a temporary directory with a read-only sandbox.
+
+Press Ctrl+C in that terminal to stop. Local logs and a PID file are stored in
+the ignored `.worker/` directory. `WORKER_ID` overrides the displayed worker
+name; `AGENT_API_URL` overrides the app URL. A second worker in the same checkout
+is prevented by the PID file. No model call is made while the queue is empty.
+
 ## Connect
 
 Generate a shared worker secret, put it in `AGENT_TOKEN` in the root `.env`, and

@@ -98,8 +98,13 @@ bun run agent heartbeat --task /tmp/interior-task.json --progress 35 --message "
 bun run agent complete --task /tmp/interior-task.json --result /tmp/interior-result.json
 ```
 
-The queue uses PostgreSQL atomic claims and expiring worker leases. The app does
-not start an autonomous Codex process. Without a connected worker, tasks remain
+To process the queue continuously in a separate terminal, with Bun and an
+authenticated Codex CLI installed, run `bun run worker`. This supervisor polls
+for tasks, invokes Codex, sends heartbeats, and submits validated designs. Stop
+it with Ctrl+C. It uses your existing Codex login and default model.
+
+The queue uses PostgreSQL atomic claims and expiring worker leases. The web app
+does not automatically start the worker. Without a connected worker, tasks remain
 queued. Agent output currently supports composed boxes, cylinders, and spheres
 with material properties; arbitrary mesh or GLTF imports are not implemented.
 
