@@ -15,6 +15,10 @@ agent-designed surface details.
   the room shell.
 - Queue surface designs and see queued, running, completed, failed, cancelled, and
   outdated states, plus worker progress and messages.
+- Inspect each agent run's saved instructions, timeline, summary, and applied
+  objects. Failed runs clearly state that nothing was applied and retain rejected
+  proposals. Download the report, compare before/after in 3D, or click an object
+  to locate and highlight it. Floor designs also appear on the 2D floor plan.
 - Switch between light, dark, and system themes. Theme tokens live in
   `apps/web/src/styles.css`.
 

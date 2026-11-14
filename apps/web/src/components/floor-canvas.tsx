@@ -16,6 +16,7 @@ import {
   validPolygon,
   type FloorPlan,
   type Point,
+  type SceneResult,
 } from "@interior-planner/shared";
 import { Button } from "./ui/button";
 import type { Notify } from "./app";
@@ -29,6 +30,7 @@ export function FloorCanvas({
   notify,
   onUndo,
   canUndo,
+  design,
 }: {
   plan: FloorPlan;
   onChange: (plan: FloorPlan) => void;
@@ -38,6 +40,7 @@ export function FloorCanvas({
   notify: Notify;
   onUndo: () => void;
   canUndo: boolean;
+  design?: SceneResult;
 }) {
   const svg = useRef<SVGSVGElement>(null);
   const [pixels, setPixels] = useState(650);
@@ -223,6 +226,44 @@ export function FloorCanvas({
               strokeWidth={plan.wallThickness}
               strokeLinejoin="miter"
             />
+            {design && (
+              <>
+                <defs>
+                  <clipPath id="floor-design-clip">
+                    <polygon
+                      points={points.map((p) => `${p.x},${p.y}`).join(" ")}
+                    />
+                  </clipPath>
+                </defs>
+                <g
+                  clipPath="url(#floor-design-clip)"
+                  pointerEvents="none"
+                  aria-label="Agent-designed floor objects"
+                >
+                  {design.objects.map((object) => {
+                    const x = box.minX + object.position[0],
+                      y = box.maxY - object.position[1],
+                      w = object.size[0],
+                      h = object.size[1];
+                    return (
+                      <rect
+                        key={object.id}
+                        x={x - w / 2}
+                        y={y - h / 2}
+                        width={w}
+                        height={h}
+                        fill={object.color}
+                        stroke="var(--border)"
+                        strokeWidth={scale * 0.4}
+                        transform={`rotate(${(-object.rotation[2] * 180) / Math.PI} ${x} ${y})`}
+                      >
+                        <title>{object.label}</title>
+                      </rect>
+                    );
+                  })}
+                </g>
+              </>
+            )}
             <text
               x={(box.minX + box.maxX) / 2}
               y={(box.minY + box.maxY) / 2 - scale * 2}

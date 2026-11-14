@@ -38,6 +38,8 @@ import {
   type SurfacePlan,
 } from "@interior-planner/shared";
 import { api } from "../lib/api";
+import { taskMessage } from "../lib/design";
+import { DesignOutcome, TaskDetails } from "./task-details";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -195,6 +197,24 @@ export function Editor({
       (j) => j.status === "queued" || j.status === "running",
     );
   const done = jobs.filter((j) => j.status === "completed");
+  const [inspectedTask, setInspectedTask] = useState<Job | null>(null);
+  const [showDesigns, setShowDesigns] = useState(true);
+  const [focusObject, setFocusObject] = useState<{
+    surfaceId: string;
+    objectId: string;
+    nonce: number;
+  } | null>(null);
+  const latestTask =
+    view === "floor"
+      ? jobs.find((j) => j.surfaceId === "floor")
+      : surfaceJobs[0];
+  const appliedDesign = surfaceJobs.find((j) => j.status === "completed");
+  function showObject(surfaceId: string, objectId: string) {
+    selectSurface(surfaceId);
+    setView("3d");
+    setShowDesigns(true);
+    setFocusObject({ surfaceId, objectId, nonce: Date.now() });
+  }
   function changePlan(plan: FloorPlan, record = true) {
     if (!draft) return;
     if (!validPolygon(plan.points)) {
@@ -255,7 +275,11 @@ export function Editor({
     }
   }
   async function generate() {
-    if (!draft || !surface) return;
+    if (surface) await queueDesign(surface.id);
+  }
+  async function queueDesign(surfaceId: string) {
+    const target = allSurfaces.find((item) => item.id === surfaceId);
+    if (!draft || !target || queuing) return;
     setQueuing(true);
     try {
       const saved = dirty ? await save() : draft;
@@ -263,14 +287,14 @@ export function Editor({
       await api(`/interiors/${id}/jobs`, {
         method: "POST",
         body: JSON.stringify({
-          surfaceId: surface.id,
+          surfaceId: target.id,
           revision: saved.revision,
         }),
       });
       await loadJobs();
       void onJobsChanged();
       notify(
-        `${surface.name} design queued${agentConfigured ? "" : " — waiting for a connected worker"}`,
+        `${target.name} design queued${agentConfigured ? "" : " — waiting for a connected worker"}`,
       );
     } catch (e: any) {
       notify(e.message);
@@ -381,6 +405,12 @@ export function Editor({
         >
           {view === "floor" ? (
             <FloorCanvas
+              design={
+                showDesigns
+                  ? (done.find((j) => j.surfaceId === "floor")?.result ??
+                    undefined)
+                  : undefined
+              }
               plan={draft.plan}
               onChange={changePlan}
               selected={selectedPoint}
@@ -411,6 +441,9 @@ export function Editor({
               }
             >
               <RoomScene
+                showDesigns={showDesigns}
+                onToggleDesigns={() => setShowDesigns((value) => !value)}
+                focusObject={focusObject}
                 plan={draft.plan}
                 surfacePlans={draft.surfaces}
                 jobs={
@@ -457,6 +490,19 @@ export function Editor({
           )}
         </section>
         <aside className="inspector">
+          {latestTask && (
+            <DesignOutcome
+              task={latestTask}
+              onInspect={() => setInspectedTask(latestTask)}
+              onView={() => {
+                selectSurface(latestTask.surfaceId);
+                setView("3d");
+                setShowDesigns(true);
+                setFocusObject(null);
+              }}
+              onRetry={() => queueDesign(latestTask.surfaceId)}
+            />
+          )}
           {view === "floor" ? (
             <>
               <p className="eyebrow mb-3">01 / Define your space</p>
@@ -700,16 +746,65 @@ export function Editor({
                     Your room shell is built from the floor plan. Surface
                     designs appear here when an agent finishes a task.
                   </p>
-                  {surfaceJobs.find((j) => j.status === "completed")
-                    ?.result && (
+                  {appliedDesign?.result && (
                     <div className="job-card">
-                      <p className="text-[11px] font-medium">Latest design</p>
-                      <p className="text-[11px] leading-5 subtle mt-2">
-                        {
-                          surfaceJobs.find((j) => j.status === "completed")!
-                            .result!.summary
-                        }
+                      <p className="text-[11px] font-medium">
+                        What the agent added
                       </p>
+                      <p className="text-[11px] leading-5 subtle mt-2">
+                        {appliedDesign.result.summary}
+                      </p>
+                      <div className="mt-3 flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-[10px] h-7"
+                          onClick={() => setShowDesigns(!showDesigns)}
+                        >
+                          {showDesigns ? "Show before" : "Show after"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-[10px] h-7"
+                          onClick={() => setInspectedTask(appliedDesign)}
+                        >
+                          Full report
+                        </Button>
+                      </div>
+                      <div className="object-list mt-3">
+                        {appliedDesign.result.objects.map((object) => (
+                          <button
+                            key={object.id}
+                            className={`object-row ${focusObject?.surfaceId === surface.id && focusObject.objectId === object.id ? "bg-muted" : ""}`}
+                            onClick={() => showObject(surface.id, object.id)}
+                          >
+                            <span
+                              className="size-3.5 rounded-sm border shrink-0"
+                              style={{ background: object.color }}
+                            />
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-[10px]">
+                                {object.label}
+                              </span>
+                              <span className="block text-[9px] subtle">
+                                {object.size
+                                  .map((n) => Number(n.toFixed(3)))
+                                  .join(" × ")}{" "}
+                                m
+                                <span className="block">
+                                  At{" "}
+                                  {object.position
+                                    .map((n) => Number(n.toFixed(2)))
+                                    .join(", ")}{" "}
+                                  m
+                                </span>
+                              </span>
+                            </span>
+                            <ChevronRight className="size-3" />
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </>
@@ -898,7 +993,7 @@ export function Editor({
                             )}
                           </div>
                           <p className="text-[10px] leading-5 subtle mt-2">
-                            {task.message}
+                            {taskMessage(task.message)}
                           </p>
                           {task.status === "running" && (
                             <>
@@ -935,6 +1030,14 @@ export function Editor({
                               Try again
                             </Button>
                           )}
+                          <Button
+                            variant="link"
+                            size="sm"
+                            className="p-0 h-auto mt-3 ml-3 text-[10px]"
+                            onClick={() => setInspectedTask(task)}
+                          >
+                            Inspect run
+                          </Button>
                         </div>
                       ))}
                     </div>
@@ -945,6 +1048,11 @@ export function Editor({
           )}
         </aside>
       </div>
+      <TaskDetails
+        task={inspectedTask}
+        onClose={() => setInspectedTask(null)}
+        onShowObject={showObject}
+      />
     </>
   );
 }

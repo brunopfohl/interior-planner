@@ -110,14 +110,16 @@ export const sceneObjectSchema = z.object({
   id: z.string().min(1).max(100),
   label: z.string().min(1).max(200),
   primitive: z.enum(["box", "cylinder", "sphere"]),
-  position: vector.refine(
-    (v) => v.every((n) => Math.abs(n) <= 100),
-    "Position is out of range",
-  ),
-  size: vector.refine(
-    (v) => v.every((n) => n >= 0.01 && n <= 70),
-    "Size must be between 0.01 and 70 m",
-  ),
+  position: z.tuple([
+    z.number().min(-100).max(100),
+    z.number().min(-100).max(100),
+    z.number().min(-100).max(100),
+  ]),
+  size: z.tuple([
+    z.number().min(0.001).max(70),
+    z.number().min(0.001).max(70),
+    z.number().min(0.001).max(70),
+  ]),
   rotation: vector,
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   roughness: z.number().min(0).max(1),
@@ -208,6 +210,13 @@ export type Job = {
   createdAt: string;
   updatedAt: string;
   result: SceneResult | null;
+  objectCount: number;
+};
+export type JobEvent = { at: string; kind: string; message: string };
+export type JobDetails = Job & {
+  input: JobInput;
+  draftResult: unknown;
+  events: JobEvent[];
 };
 export type JobInput = {
   interiorName: string;

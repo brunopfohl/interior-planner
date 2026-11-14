@@ -32,6 +32,8 @@ export async function migrate() {
       updated_at timestamptz NOT NULL DEFAULT now()
     )`;
     await sql`CREATE INDEX IF NOT EXISTS agent_jobs_interior_idx ON agent_jobs(interior_id, created_at DESC)`;
+    await sql`ALTER TABLE agent_jobs ADD COLUMN IF NOT EXISTS draft_result jsonb`;
+    await sql`ALTER TABLE agent_jobs ADD COLUMN IF NOT EXISTS events jsonb NOT NULL DEFAULT '[]'::jsonb`;
     await sql`CREATE INDEX IF NOT EXISTS agent_jobs_queue_idx ON agent_jobs(created_at) WHERE status = 'queued'`;
     await sql`CREATE UNIQUE INDEX IF NOT EXISTS agent_jobs_active_surface_idx ON agent_jobs(interior_id, surface_id) WHERE status IN ('queued', 'running')`;
   });

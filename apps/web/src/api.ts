@@ -50,6 +50,7 @@ function job(row: Row): Job {
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
     result: row.status === "completed" ? row.result : null,
+    objectCount: row.result?.objects?.length ?? 0,
   };
 }
 function uuid(value: string) {
@@ -71,6 +72,7 @@ async function body(req: Request): Promise<any> {
 async function expireLeases() {
   await db`UPDATE agent_jobs SET status = CASE WHEN attempt >= 3 THEN 'failed' ELSE 'queued' END,
     message = CASE WHEN attempt >= 3 THEN 'Worker lease expired after three attempts' ELSE 'Worker disconnected; waiting for another agent' END,
+    events = events || jsonb_build_array(jsonb_build_object('at', now(), 'kind', 'lease_expired', 'message', 'Worker lease expired; retrying when attempts remain')),
     worker_id = NULL, lease_token = NULL, lease_expires_at = NULL, progress = 0, updated_at = now()
     WHERE status = 'running' AND lease_expires_at < now()`;
 }
@@ -105,7 +107,7 @@ export async function handleApi(req: Request): Promise<Response> {
       return Response.json(
         (
           await db`SELECT * FROM agent_jobs ORDER BY created_at DESC LIMIT 100`
-        ).map((row: Row) => job({ ...row, result: null })),
+        ).map((row: Row) => ({ ...job(row), result: null })),
       );
     }
     if (path === "/api/interiors") {
@@ -171,8 +173,8 @@ export async function handleApi(req: Request): Promise<Response> {
                 "Interpret the surface plan and design notes as an interior designer. Decide suitable form, materials, depth and detail. Produce original 3D geometry using the scene result schema. All measurements are metres. Local X is horizontal across the surface, local Y is up on its 2D plan, and local Z points inward into the room. Position is the centre of each primitive. Size is the full X/Y/Z extent. Rotation is XYZ Euler angles in radians. For cylinders the cylinder axis is local Y. Do not include the room shell; it is already rendered. Use the full floor footprint to avoid placing geometry outside concave floor or ceiling boundaries. Wall opening annotations already cut through the room shell. Design their frames, reveals, glazing and surrounding geometry. Floor and ceiling openings remain design intent; model their appearance explicitly. Return JSON only; never executable code.",
             };
             const [created] =
-              await sql`INSERT INTO agent_jobs (id,interior_id,surface_id,surface_name,revision,input)
-              VALUES (${crypto.randomUUID()},${id},${surface.id},${surface.name},${room.revision},${sql.json(input)}) RETURNING *`;
+              await sql`INSERT INTO agent_jobs (id,interior_id,surface_id,surface_name,revision,input,events)
+              VALUES (${crypto.randomUUID()},${id},${surface.id},${surface.name},${room.revision},${sql.json(input)},${sql.json([{ at: new Date().toISOString(), kind: "queued", message: "Saved design instructions and queued the task" }])}) RETURNING *`;
             return created;
           });
           return Response.json(job(row), { status: 201 });
@@ -227,7 +229,7 @@ export async function handleApi(req: Request): Promise<Response> {
               await sql`SELECT id, surface_id FROM agent_jobs WHERE interior_id = ${id} AND status IN ('queued','running','completed')`;
             for (const item of jobs) {
               if (geometryChanged || changed.has(item.surface_id))
-                await sql`UPDATE agent_jobs SET status = 'superseded', message = 'The plan changed; generate again to update this surface', lease_token = NULL, lease_expires_at = NULL, updated_at = now() WHERE id = ${item.id}`;
+                await sql`UPDATE agent_jobs SET status = 'superseded', message = 'The plan changed; generate again to update this surface', events = events || jsonb_build_array(jsonb_build_object('at', now(), 'kind', 'superseded', 'message', 'The plan changed; this design is no longer applied')), lease_token = NULL, lease_expires_at = NULL, updated_at = now() WHERE id = ${item.id}`;
             }
             const [row] =
               await sql`UPDATE interiors SET name = ${data.name}, description = ${data.description}, plan = ${sql.json(data.plan)},
@@ -244,10 +246,22 @@ export async function handleApi(req: Request): Promise<Response> {
         }
       }
     }
+    const detail = path.match(/^\/api\/jobs\/([^/]+)$/);
+    if (detail && method === "GET") {
+      const [row] =
+        await db`SELECT * FROM agent_jobs WHERE id = ${uuid(detail[1]!)}`;
+      if (!row) throw new ApiError(404, "Task not found");
+      return Response.json({
+        ...job(row),
+        input: row.input,
+        draftResult: row.draft_result,
+        events: row.events,
+      });
+    }
     const cancel = path.match(/^\/api\/jobs\/([^/]+)\/cancel$/);
     if (cancel && method === "POST") {
       const rows =
-        await db`UPDATE agent_jobs SET status = 'cancelled', message = 'Cancelled by you', lease_token = NULL, lease_expires_at = NULL, updated_at = now()
+        await db`UPDATE agent_jobs SET status = 'cancelled', message = 'Cancelled by you', events = events || jsonb_build_array(jsonb_build_object('at', now(), 'kind', 'cancelled', 'message', 'Cancelled by you; no new design applied')), lease_token = NULL, lease_expires_at = NULL, updated_at = now()
         WHERE id = ${uuid(cancel[1]!)} AND status IN ('queued','running') RETURNING *`;
       if (!rows.length)
         throw new ApiError(409, "This task is no longer active");
@@ -302,14 +316,29 @@ export async function handleApi(req: Request): Promise<Response> {
         data.status === "completed"
           ? sceneResultSchema.parse(data.result)
           : null;
+      if (
+        data.draftResult !== undefined &&
+        (data.draftResult === null ||
+          typeof data.draftResult !== "object" ||
+          JSON.stringify(data.draftResult).length > 750_000)
+      )
+        throw new ApiError(400, "Invalid draft result");
+      const message =
+        data.message ??
+        (data.status === "completed"
+          ? "Design is ready"
+          : data.status === "failed"
+            ? "Agent could not finish this design"
+            : "Agent is designing");
       const updated = await db.begin(async (sql) => {
         const [record] =
           await sql`SELECT interior_id FROM agent_jobs WHERE id = ${id}`;
         if (!record) throw new ApiError(404, "Task not found");
         await sql`SELECT id FROM interiors WHERE id = ${record.interior_id} FOR UPDATE`;
         const [row] =
-          await sql`UPDATE agent_jobs SET status = ${data.status}, progress = ${data.status === "completed" ? 100 : (data.progress ?? 10)},
-          message = ${data.message ?? (data.status === "completed" ? "Design is ready" : data.status === "failed" ? "Agent could not finish this design" : "Agent is designing")},
+          await sql`UPDATE agent_jobs SET status = ${data.status}, progress = CASE WHEN ${data.status} = 'completed' THEN 100 ELSE COALESCE(${data.progress ?? null}, progress) END,
+          events = CASE WHEN message IS DISTINCT FROM ${message} OR status IS DISTINCT FROM ${data.status} THEN events || ${sql.json([{ at: new Date().toISOString(), kind: data.status, message }])} ELSE events END,
+          message = ${message}, draft_result = COALESCE(${data.draftResult ? sql.json(data.draftResult) : null}, draft_result),
           result = ${result ? sql.json(result) : null}, lease_expires_at = ${data.status === "running" ? new Date(Date.now() + 120_000) : null}, updated_at = now()
           WHERE id = ${id} AND lease_token::text = ${data.leaseToken} AND status = 'running' AND lease_expires_at > now() RETURNING *`;
         if (!row)
@@ -318,7 +347,7 @@ export async function handleApi(req: Request): Promise<Response> {
             "Task lease expired, was cancelled, or the plan changed",
           );
         if (data.status === "completed")
-          await sql`UPDATE agent_jobs SET status = 'superseded', message = 'Replaced by a newer design', updated_at = now()
+          await sql`UPDATE agent_jobs SET status = 'superseded', message = 'Replaced by a newer design', events = events || jsonb_build_array(jsonb_build_object('at', now(), 'kind', 'superseded', 'message', 'Replaced by a newer applied design')), updated_at = now()
           WHERE interior_id = ${row.interior_id} AND surface_id = ${row.surface_id} AND status = 'completed' AND id <> ${id}`;
         return row;
       });

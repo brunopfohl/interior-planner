@@ -17,12 +17,18 @@ export function RoomScene({
   jobs,
   selected,
   onSelect,
+  showDesigns,
+  onToggleDesigns,
+  focusObject,
 }: {
   plan: FloorPlan;
   surfacePlans: Record<string, SurfacePlan>;
   jobs: Job[];
   selected: string;
   onSelect: (id: string) => void;
+  showDesigns: boolean;
+  onToggleDesigns: () => void;
+  focusObject: { surfaceId: string; objectId: string; nonce: number } | null;
 }) {
   const host = useRef<HTMLDivElement>(null),
     reset = useRef<() => void>(() => {}),
@@ -58,6 +64,8 @@ export function RoomScene({
     ceiling,
     cutaway,
     dark,
+    showDesigns,
+    focusObject,
   });
   useEffect(() => {
     const element = host.current!;
@@ -87,7 +95,7 @@ export function RoomScene({
     const camera = new THREE.PerspectiveCamera(40, 1, 0.05, 500),
       controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.maxPolarAngle = Math.PI * 0.49;
+    controls.maxPolarAngle = Math.PI * 0.95;
     controls.minDistance = 1;
     controls.maxDistance = 100;
     const box = bounds(plan.points),
@@ -239,6 +247,7 @@ export function RoomScene({
       if (
         job.status === "completed" &&
         job.result &&
+        showDesigns &&
         !latest.has(job.surfaceId)
       )
         latest.set(job.surfaceId, job);
@@ -270,7 +279,31 @@ export function RoomScene({
         mesh.receiveShadow = true;
         mesh.userData.surfaceId = id;
         mesh.userData.label = object.label;
+        mesh.userData.objectId = object.id;
         group.add(mesh);
+        if (
+          focusObject?.surfaceId === id &&
+          focusObject.objectId === object.id
+        ) {
+          group.updateWorldMatrix(true, true);
+          const targetBox = new THREE.Box3().setFromObject(mesh),
+            target = targetBox.getCenter(new THREE.Vector3());
+          const distance = Math.max(
+            targetBox.getSize(new THREE.Vector3()).length() * 1.8,
+            1.5,
+          );
+          const direction = id.startsWith("wall:")
+            ? new THREE.Vector3(0, 0.35, 1).applyQuaternion(group.quaternion)
+            : id === "ceiling"
+              ? new THREE.Vector3(0.3, -1, 0.3)
+              : new THREE.Vector3(0.6, 1, 0.8);
+          camera.position
+            .copy(target)
+            .add(direction.normalize().multiplyScalar(distance));
+          controls.target.copy(target);
+          controls.update();
+          scene.add(new THREE.BoxHelper(mesh, dark ? 0xffffff : 0x171717));
+        }
       }
     }
     const ground = new THREE.Mesh(
@@ -378,6 +411,15 @@ export function RoomScene({
       ) : (
         <>
           <div className="canvas-tools">
+            <Button
+              size="sm"
+              variant={showDesigns ? "secondary" : "ghost"}
+              className="text-[11px] h-7"
+              onClick={onToggleDesigns}
+            >
+              {showDesigns ? "After · Agent design" : "Before · Original room"}
+            </Button>
+            <span className="border-l mx-1" />
             <label className="flex items-center gap-2 px-2 text-[11px]">
               <input
                 type="checkbox"
@@ -397,6 +439,7 @@ export function RoomScene({
             </label>
           </div>
           <p className="canvas-caption">
+            {!showDesigns && "Agent changes hidden · "}
             Drag to orbit · Scroll to zoom · Click a surface to select
           </p>
           <div className="canvas-zoom">

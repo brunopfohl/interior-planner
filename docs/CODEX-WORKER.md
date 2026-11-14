@@ -26,6 +26,13 @@ the ignored `.worker/` directory. `WORKER_ID` overrides the displayed worker
 name; `AGENT_API_URL` overrides the app URL. A second worker in the same checkout
 is prevented by the PID file. No model call is made while the queue is empty.
 
+Every run has an inspectable report in the app: saved instructions, stage
+timeline, proposed design, validation outcome, and the objects actually applied.
+The supervisor retains proposals and diagnostic logs in `.worker/jobs/<task-id>`.
+Rejected geometry is also attached to the task report and never reaches the
+scene. Validation errors trigger one Codex repair attempt with explicit feedback;
+if that fails, the task reports that no changes were applied.
+
 ## Connect
 
 Generate a shared worker secret, put it in `AGENT_TOKEN` in the root `.env`, and
@@ -88,6 +95,9 @@ design for that surface.
 
 - All distances are metres. `position` is each object's centre.
 - `size` is the full X/Y/Z extent, including for spheres and cylinders.
+- Each size component must be between 0.001 and 70 metres. Thin tile layers and
+  floor finishes are allowed. Put a floor finish above the existing shell:
+  its centre's local Z should be at least half its thickness.
 - `rotation` is XYZ Euler angles, in radians. Cylinders run along local Y.
 - Wall coordinates: X goes from the wall's start to end, Y goes up from the
   floor, Z points into the room. Wall opening annotations already cut through
@@ -105,6 +115,9 @@ design for that surface.
   validates and renders this scene data; it never runs generated JavaScript.
 - Do not include the existing floor, ceiling, or walls. Give each object a
   stable, unique ID and a descriptive label. Submit at most 300 objects.
+- Explain the actual changes in `summary`: requested colors, material, pattern,
+  coverage, and where the result appears. Labels should identify useful design
+  parts rather than generic objects. An empty object list adds no geometry.
 
 Example result shape (illustrative geometry, not an automatic design):
 

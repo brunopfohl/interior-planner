@@ -131,6 +131,36 @@ try {
   assert.equal(visible.progress, 44);
   assert.equal(visible.message, "Building cabinetry");
   assert.equal(visible.leaseToken, undefined);
+  const rejectedDraft = {
+    summary: "An invalid thin tile proposal",
+    objects: [{ id: "tile", size: [0.6, 0.6, 0.0001] }],
+  };
+  await request(
+    `/agent/jobs/${task.id}`,
+    "PATCH",
+    {
+      leaseToken: task.leaseToken,
+      status: "running",
+      message: "Checking generated geometry",
+      draftResult: rejectedDraft,
+    },
+    true,
+  );
+  const report = await request(`/jobs/${task.id}`);
+  assert.equal(report.input.surfacePlan.notes, "Design a low oak cabinet");
+  assert.deepEqual(report.draftResult, rejectedDraft);
+  assert.equal(report.result, null);
+  assert.equal(report.leaseToken, undefined);
+  assert(
+    report.events.some(
+      (event: any) => event.message === "Checking generated geometry",
+    ),
+  );
+  assert.equal(
+    report.progress,
+    44,
+    "Heartbeats without progress must not reset it",
+  );
   await request(
     `/agent/jobs/${task.id}`,
     "PATCH",
@@ -173,6 +203,11 @@ try {
   );
   assert.equal(completed.progress, 100);
   assert.deepEqual(completed.result, result);
+  const completedReport = await request(`/jobs/${task.id}`);
+  assert.equal(completedReport.objectCount, 1);
+  assert(
+    completedReport.events.some((event: any) => event.kind === "completed"),
+  );
   await request(
     `/agent/jobs/${task.id}`,
     "PATCH",

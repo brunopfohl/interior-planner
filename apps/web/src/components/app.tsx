@@ -29,6 +29,8 @@ import {
   type Job,
 } from "@interior-planner/shared";
 import { api } from "../lib/api";
+import { outcome, taskMessage } from "../lib/design";
+import { TaskDetails } from "./task-details";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
@@ -169,6 +171,7 @@ export function App() {
   const [deleteRoom, setDeleteRoom] = useState<Interior | null>(null),
     [agentConfigured, setAgentConfigured] = useState(false);
   const [editorDirty, setEditorDirty] = useState(false);
+  const [inspectedTask, setInspectedTask] = useState<Job | null>(null);
   const notify = useCallback((message: string) => setToast(message), []);
   useEffect(() => {
     if (toast) {
@@ -216,7 +219,8 @@ export function App() {
     return () => window.removeEventListener("popstate", pop);
   }, [editorDirty, path]);
   const go = (to: string) => {
-    if (editorDirty && !confirm("Leave without saving your changes?")) return false;
+    if (editorDirty && !confirm("Leave without saving your changes?"))
+      return false;
     history.pushState(null, "", to);
     setPath(to);
     setEditorDirty(false);
@@ -580,7 +584,22 @@ export function App() {
                             </button>
                             <JobBadge status={task.status} />
                           </div>
-                          <p className="text-xs subtle mt-3">{task.message}</p>
+                          <p
+                            className={`text-xs mt-3 ${task.status === "failed" ? "text-destructive" : "font-medium"}`}
+                          >
+                            {outcome(task)}
+                          </p>
+                          <p className="text-xs subtle mt-2">
+                            {taskMessage(task.message)}
+                          </p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-3 text-xs"
+                            onClick={() => setInspectedTask(task)}
+                          >
+                            Inspect run
+                          </Button>
                           <div className="mt-3 flex justify-between text-[10px] subtle">
                             <span>
                               {task.workerId
@@ -610,6 +629,10 @@ export function App() {
           </>
         )}
       </main>
+      <TaskDetails
+        task={inspectedTask}
+        onClose={() => setInspectedTask(null)}
+      />
       <Dialog open={creating} onOpenChange={setCreating}>
         <DialogContent className="sm:max-w-[440px]">
           <form onSubmit={create}>

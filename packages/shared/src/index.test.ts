@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import { outputSchema } from "../../../scripts/worker-schema";
 import {
   area,
   defaultPlan,
   floorPlanSchema,
   sceneResultSchema,
+  sceneResultJsonSchema,
   surfacesFor,
   validPolygon,
 } from "./index";
@@ -103,5 +105,28 @@ describe("agent output validation", () => {
         objects: [{ ...object, color: "url(unsafe)" }],
       }).success,
     ).toBe(false);
+  });
+  test("accepts realistic thin floor finishes and rejects degenerate geometry", () => {
+    expect(
+      sceneResultSchema.safeParse({
+        summary: "8 mm floor tiles",
+        objects: [{ ...object, size: [0.6, 0.6, 0.008] }],
+      }).success,
+    ).toBe(true);
+    expect(
+      sceneResultSchema.safeParse({
+        summary: "Degenerate tile",
+        objects: [{ ...object, size: [0.6, 0.6, 0.0005] }],
+      }).success,
+    ).toBe(false);
+  });
+  test("keeps numeric constraints in the schema provided to Codex", () => {
+    const schema = outputSchema(sceneResultJsonSchema);
+    const properties = schema.properties.objects.items.properties;
+    expect(properties.size.items.minimum).toBe(0.001);
+    expect(properties.size.items.maximum).toBe(70);
+    expect(properties.size.minItems).toBe(3);
+    expect(properties.position.items.minimum).toBe(-100);
+    expect(properties.position.items.maximum).toBe(100);
   });
 });
