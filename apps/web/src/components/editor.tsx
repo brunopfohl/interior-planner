@@ -132,8 +132,16 @@ export function Editor({
     [error, setError] = useState("");
   const [view, setView] = useState<"floor" | "3d" | "surface">("floor"),
     [selectedSurface, setSelectedSurface] = useState("floor");
-  const [selectedPoint, setSelectedPoint] = useState<string | null>(null),
-    [selectedElement, setSelectedElement] = useState<string | null>(null);
+  const [selectedPoint, setSelectedPoint] = useState<string | null>(null);
+  const [selectedElements, setSelectedElements] = useState<string[]>([]);
+  const [selectionToolRequest, setSelectionToolRequest] = useState(0);
+  const selectedElement = selectedElements[0] ?? null;
+  function setSelectedElement(id: string | null) {
+    setSelectedElements(id ? [id] : []);
+  }
+  const [surfaceHistory, setSurfaceHistory] = useState<
+    Record<string, { past: SurfacePlan[]; future: SurfacePlan[] }>
+  >({});
   const [snap, setSnap] = useState(true),
     [saving, setSaving] = useState(false),
     [queuing, setQueuing] = useState(false),
@@ -235,12 +243,55 @@ export function Editor({
       ),
     });
   }
-  function changeSurface(value: SurfacePlan) {
-    if (draft && surface)
+  function changeSurface(value: SurfacePlan, record = true) {
+    if (draft && surface) {
+      if (JSON.stringify(surfacePlan) === JSON.stringify(value)) return;
+      if (record)
+        setSurfaceHistory((previous) => ({
+          ...previous,
+          [surface.id]: {
+            past: [
+              ...(previous[surface.id]?.past ?? []).slice(-49),
+              surfacePlan,
+            ],
+            future: [],
+          },
+        }));
       setDraft({
         ...draft,
         surfaces: { ...draft.surfaces, [surface.id]: value },
       });
+    }
+  }
+  function undoSurface() {
+    if (!surface) return;
+    const history = surfaceHistory[surface.id],
+      previous = history?.past.at(-1);
+    if (!previous) return;
+    setSurfaceHistory({
+      ...surfaceHistory,
+      [surface.id]: {
+        past: history!.past.slice(0, -1),
+        future: [surfacePlan, ...history!.future],
+      },
+    });
+    changeSurface(previous, false);
+    setSelectedElements([]);
+  }
+  function redoSurface() {
+    if (!surface) return;
+    const history = surfaceHistory[surface.id],
+      next = history?.future[0];
+    if (!next) return;
+    setSurfaceHistory({
+      ...surfaceHistory,
+      [surface.id]: {
+        past: [...history!.past, surfacePlan],
+        future: history!.future.slice(1),
+      },
+    });
+    changeSurface(next, false);
+    setSelectedElements([]);
   }
   function changeElement(data: Partial<PlanElement>) {
     if (element)
@@ -468,29 +519,23 @@ export function Editor({
             </Suspense>
           ) : (
             <SurfaceCanvas
+              selectionToolRequest={selectionToolRequest}
               key={surface.id}
               surface={surface}
               plan={draft.plan}
               value={surfacePlan}
               onChange={changeSurface}
-              selected={selectedElement}
-              onSelect={setSelectedElement}
+              selected={selectedElements}
+              onSelect={setSelectedElements}
+              onUndo={undoSurface}
+              onRedo={redoSurface}
+              canUndo={!!surfaceHistory[surface.id]?.past.length}
+              canRedo={!!surfaceHistory[surface.id]?.future.length}
             />
-          )}
-          {view === "surface" && (
-            <div className="absolute right-5 top-5">
-              <Badge
-                variant="outline"
-                className="bg-background font-normal text-[10px]"
-              >
-                {surface.name} /{" "}
-                {surface.kind === "wall" ? "Elevation" : "Plan"}
-              </Badge>
-            </div>
           )}
         </section>
         <aside className="inspector">
-          {latestTask && (
+          {latestTask && view !== "surface" && (
             <DesignOutcome
               task={latestTask}
               onInspect={() => setInspectedTask(latestTask)}
@@ -692,39 +737,57 @@ export function Editor({
                   : "Each surface is a canvas. Sketch an idea and let your agent shape it."}
               </p>
               <div className="mt-5">
-                {allSurfaces.map((item) => {
-                  const task = jobs.find(
-                    (j) =>
-                      j.surfaceId === item.id &&
-                      (j.status === "queued" || j.status === "running"),
-                  );
-                  return (
-                    <button
-                      key={item.id}
-                      className={`surface-item ${surface.id === item.id ? "selected" : ""}`}
-                      onClick={() => selectSurface(item.id)}
+                {view === "surface" ? (
+                  <div className="field mt-0">
+                    <Label htmlFor="active-surface">Editing surface</Label>
+                    <select
+                      id="active-surface"
+                      value={surface.id}
+                      onChange={(event) => selectSurface(event.target.value)}
                     >
-                      {item.kind === "wall" ? <Square /> : <Layers />}
-                      <span className="flex-1 text-xs">
-                        {item.name}
-                        <span className="block text-[9px] subtle mt-1">
-                          {item.width.toFixed(2)} × {item.height.toFixed(2)} m
+                      {allSurfaces.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name} · {item.width.toFixed(2)} ×{" "}
+                          {item.height.toFixed(2)} m
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  allSurfaces.map((item) => {
+                    const task = jobs.find(
+                      (j) =>
+                        j.surfaceId === item.id &&
+                        (j.status === "queued" || j.status === "running"),
+                    );
+                    return (
+                      <button
+                        key={item.id}
+                        className={`surface-item ${surface.id === item.id ? "selected" : ""}`}
+                        onClick={() => selectSurface(item.id)}
+                      >
+                        {item.kind === "wall" ? <Square /> : <Layers />}
+                        <span className="flex-1 text-xs">
+                          {item.name}
+                          <span className="block text-[9px] subtle mt-1">
+                            {item.width.toFixed(2)} × {item.height.toFixed(2)} m
+                          </span>
                         </span>
-                      </span>
-                      {task ? (
-                        <Loader2
-                          className={
-                            task.status === "running" ? "animate-spin" : ""
-                          }
-                        />
-                      ) : done.some((j) => j.surfaceId === item.id) ? (
-                        <Check />
-                      ) : (
-                        <ChevronRight />
-                      )}
-                    </button>
-                  );
-                })}
+                        {task ? (
+                          <Loader2
+                            className={
+                              task.status === "running" ? "animate-spin" : ""
+                            }
+                          />
+                        ) : done.some((j) => j.surfaceId === item.id) ? (
+                          <Check />
+                        ) : (
+                          <ChevronRight />
+                        )}
+                      </button>
+                    );
+                  })
+                )}
               </div>
               {view === "3d" ? (
                 <>
@@ -819,30 +882,121 @@ export function Editor({
                       {surfacePlan.elements.length} features
                     </Badge>
                   </div>
-                  <div className="field">
-                    <Label htmlFor="design-notes">Design instructions</Label>
-                    <Textarea
-                      id="design-notes"
-                      placeholder={
-                        surface.kind === "wall"
-                          ? "e.g. Full-height oak shelving, a low cabinet, and warm recessed lighting…"
-                          : surface.kind === "floor"
-                            ? "e.g. Light oak herringbone flooring, a wool rug and a low sculptural table…"
-                            : "e.g. A recessed perimeter with indirect light and a simple central pendant…"
-                      }
-                      value={surfacePlan.notes}
-                      onChange={(e) =>
-                        changeSurface({ ...surfacePlan, notes: e.target.value })
-                      }
-                      maxLength={8000}
-                      className="min-h-[120px] text-xs leading-5 resize-y"
-                    />
+                  <div className="surface-items-list">
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className="text-xs font-medium">
+                        Items on this surface
+                      </h3>
+                      <span className="text-[10px] subtle">
+                        {surfacePlan.elements.length}
+                      </span>
+                    </div>
+                    {surfacePlan.elements.length === 0 ? (
+                      <p className="text-[11px] subtle leading-5">
+                        Choose Draw to sketch freely, or drag a rectangle, line,
+                        ellipse, or opening. Text adds a note.
+                      </p>
+                    ) : (
+                      <ol className="surface-layers">
+                        {[...surfacePlan.elements].reverse().map((item) => (
+                          <li
+                            key={item.id}
+                            className={
+                              selectedElements.includes(item.id)
+                                ? "selected"
+                                : ""
+                            }
+                          >
+                            <button
+                              className="surface-layer-name"
+                              onClick={(event) => {
+                                setSelectionToolRequest((value) => value + 1);
+                                if (event.shiftKey)
+                                  setSelectedElements((previous) =>
+                                    previous.includes(item.id)
+                                      ? previous.filter((id) => id !== item.id)
+                                      : [...previous, item.id],
+                                  );
+                                else setSelectedElements([item.id]);
+                              }}
+                            >
+                              <span className="surface-layer-icon">
+                                {item.kind === "opening" ? (
+                                  <DoorOpen />
+                                ) : item.kind === "stroke" ? (
+                                  <PencilRuler />
+                                ) : item.kind === "text" ? (
+                                  <span className="font-serif font-bold">
+                                    T
+                                  </span>
+                                ) : (
+                                  <Square />
+                                )}
+                              </span>
+                              <span className="truncate">
+                                {item.label || item.kind}
+                              </span>
+                            </button>
+                            <Button
+                              variant="ghost"
+                              size="icon-xs"
+                              aria-label={`Delete ${item.label || item.kind}`}
+                              onClick={() => {
+                                changeSurface({
+                                  ...surfacePlan,
+                                  elements: surfacePlan.elements.filter(
+                                    (element) => element.id !== item.id,
+                                  ),
+                                });
+                                setSelectedElements((previous) =>
+                                  previous.filter((id) => id !== item.id),
+                                );
+                              }}
+                            >
+                              <Trash2 />
+                            </Button>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
                   </div>
-                  {element ? (
+                  {selectedElements.length > 1 ? (
+                    <div className="rounded-md border p-3 mt-4">
+                      <p className="text-xs font-medium">
+                        {selectedElements.length} items selected
+                      </p>
+                      <p className="text-[11px] subtle mt-2">
+                        Drag to move them together. Shift-click changes the
+                        selection.
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-3 w-full text-xs"
+                        onClick={() => {
+                          changeSurface({
+                            ...surfacePlan,
+                            elements: surfacePlan.elements.filter(
+                              (item) => !selectedElements.includes(item.id),
+                            ),
+                          });
+                          setSelectedElements([]);
+                        }}
+                      >
+                        <Trash2 />
+                        Delete selected items
+                      </Button>
+                    </div>
+                  ) : element ? (
                     <>
                       <div className="mt-5 flex justify-between items-center">
                         <span className="text-xs font-medium">
-                          Selected {element.kind}
+                          Selected{" "}
+                          {element.kind === "feature"
+                            ? "rectangle"
+                            : element.kind === "stroke"
+                              ? "sketch"
+                              : element.kind}
                         </span>
                         <Button
                           size="icon-sm"
@@ -862,13 +1016,11 @@ export function Editor({
                         </Button>
                       </div>
                       <div className="field">
-                        <Label htmlFor="feature-label">
-                          Feature description
-                        </Label>
+                        <Label htmlFor="feature-label">Item description</Label>
                         <Input
                           id="feature-label"
                           className="text-xs"
-                          placeholder="Describe this feature"
+                          placeholder="Describe this item"
                           value={element.label}
                           maxLength={200}
                           onChange={(e) =>
@@ -878,27 +1030,27 @@ export function Editor({
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <NumberField
-                          label="Feature width"
+                          label="Item width"
                           value={element.width}
                           min={0.05}
                           max={Math.max(0.05, surface.width - element.x)}
                           onChange={(width) => changeElement({ width })}
                         />
                         <NumberField
-                          label="Feature height"
+                          label="Item height"
                           value={element.height}
                           min={0.05}
                           max={Math.max(0.05, surface.height - element.y)}
                           onChange={(height) => changeElement({ height })}
                         />
                         <NumberField
-                          label="Feature X"
+                          label="Position X"
                           value={element.x}
                           max={Math.max(0, surface.width - element.width)}
                           onChange={(x) => changeElement({ x })}
                         />
                         <NumberField
-                          label="Feature Y"
+                          label="Position Y"
                           value={element.y}
                           max={Math.max(0, surface.height - element.height)}
                           onChange={(y) => changeElement({ y })}
@@ -907,10 +1059,31 @@ export function Editor({
                     </>
                   ) : (
                     <p className="mt-4 text-[10px] leading-5 subtle">
-                      Draw rectangles for features and dashed openings. Select a
-                      feature to set its description and exact dimensions.
+                      Select an item on the canvas or in the list. Drag its
+                      handles to resize it. Delete removes it; Ctrl/⌘ Z brings
+                      it back.
                     </p>
                   )}
+                  <div className="inspector-divider" />
+                  <div className="field">
+                    <Label htmlFor="design-notes">Design instructions</Label>
+                    <Textarea
+                      id="design-notes"
+                      placeholder={
+                        surface.kind === "wall"
+                          ? "e.g. Full-height oak shelving, a low cabinet, and warm recessed lighting…"
+                          : surface.kind === "floor"
+                            ? "e.g. Light oak herringbone flooring, a wool rug and a low sculptural table…"
+                            : "e.g. A recessed perimeter with indirect light and a simple central pendant…"
+                      }
+                      value={surfacePlan.notes}
+                      onChange={(e) =>
+                        changeSurface({ ...surfacePlan, notes: e.target.value })
+                      }
+                      maxLength={8000}
+                      className="min-h-[120px] text-xs leading-5 resize-y"
+                    />
+                  </div>
                   {surface.kind === "wall" &&
                     surfacePlan.elements.some((e) => e.kind === "opening") && (
                       <p className="mt-3 text-[10px] subtle leading-5">

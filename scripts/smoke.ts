@@ -66,6 +66,22 @@ try {
             height: 0.8,
             label: "Oak cabinet",
           },
+          {
+            id: "sketch",
+            kind: "stroke",
+            x: 1,
+            y: 1,
+            width: 2,
+            height: 1,
+            label: "Shelving sketch",
+            color: "#171717",
+            strokeWidth: 0.02,
+            points: [
+              { x: 0, y: 0 },
+              { x: 0.5, y: 1 },
+              { x: 1, y: 0 },
+            ],
+          },
         ],
       },
     },
@@ -113,6 +129,8 @@ try {
     other = claimed.find((t) => t.id === second.id);
   assert(task && other);
   assert.equal(task.input.surfacePlan.notes, "Design a low oak cabinet");
+  assert.equal(task.input.surfacePlan.elements[1].kind, "stroke");
+  assert.equal(task.input.surfacePlan.elements[1].points.length, 3);
   assert(task.outputSchema.properties.objects);
   await request(
     `/agent/jobs/${task.id}`,

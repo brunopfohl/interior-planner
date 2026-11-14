@@ -86,12 +86,24 @@ export const defaultPlan: FloorPlan = {
 
 export const elementSchema = z.object({
   id: z.string().min(1).max(80),
-  kind: z.enum(["feature", "opening"]),
+  kind: z.enum(["feature", "opening", "stroke", "line", "ellipse", "text"]),
   x: z.number().min(0).max(70),
   y: z.number().min(0).max(70),
   width: z.number().min(0.05).max(70),
   height: z.number().min(0.05).max(70),
   label: z.string().max(200),
+  points: z
+    .array(
+      z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) }),
+    )
+    .min(2)
+    .max(600)
+    .optional(),
+  color: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .optional(),
+  strokeWidth: z.number().min(0.001).max(0.2).optional(),
 });
 export type PlanElement = z.infer<typeof elementSchema>;
 export const surfacePlanSchema = z.object({
@@ -100,6 +112,7 @@ export const surfacePlanSchema = z.object({
 });
 export type SurfacePlan = z.infer<typeof surfacePlanSchema>;
 export const blankSurface = (): SurfacePlan => ({ notes: "", elements: [] });
+export * from "./surface-editing";
 
 const vector = z.tuple([
   z.number().finite(),

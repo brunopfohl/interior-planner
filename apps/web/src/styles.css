@@ -356,6 +356,169 @@
 .object-row:hover {
   background: var(--muted);
 }
+.surface-workspace {
+  position: absolute;
+  inset: 0;
+}
+.surface-toolbar {
+  position: absolute;
+  z-index: 3;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--background);
+  box-shadow: 0 3px 12px #00000008;
+}
+.surface-tool-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding-right: 6px;
+}
+.surface-tool {
+  height: 31px;
+  padding: 0 7px !important;
+  gap: 5px;
+  font-size: 11px;
+}
+.surface-tool svg {
+  width: 14px;
+  height: 14px;
+}
+.surface-tool[aria-pressed="true"] {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.surface-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 6px 4px 0;
+  border-top: 1px solid var(--border);
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+.surface-options input[type="color"] {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.surface-options select {
+  font-size: 10px;
+  padding: 2px 4px;
+}
+.surface-context {
+  position: absolute;
+  left: 20px;
+  bottom: 18px;
+  right: 190px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  justify-content: space-between;
+  font-size: 10px;
+  line-height: 1.7;
+  color: var(--muted-foreground);
+  pointer-events: none;
+}
+.surface-zoom {
+  bottom: 14px;
+  right: 16px;
+}
+.surface-svg:focus {
+  outline: none;
+}
+.surface-inline-text {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  color: var(--foreground);
+  background: var(--background);
+  border: 0;
+  outline: none;
+}
+.surface-items-list {
+  margin-top: 18px;
+}
+.surface-layers {
+  max-height: 210px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.surface-layers li {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  padding-right: 5px;
+  border-bottom: 1px solid var(--border);
+}
+.surface-layers li:last-child {
+  border-bottom: 0;
+}
+.surface-layers li.selected {
+  background: var(--muted);
+}
+.surface-layer-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+  padding: 9px;
+  text-align: left;
+  font-size: 11px;
+}
+.surface-layer-icon {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+}
+.surface-layer-icon svg {
+  width: 13px;
+  height: 13px;
+}
+@media (max-width: 760px) {
+  .surface-toolbar {
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    gap: 4px;
+    padding: 6px;
+  }
+  .surface-tool {
+    padding: 0 5px !important;
+  }
+  .surface-tool span {
+    display: none;
+  }
+  .surface-options {
+    gap: 8px;
+  }
+  .surface-context {
+    left: 14px;
+    bottom: 16px;
+    font-size: 9px;
+  }
+  .surface-context > span:last-child {
+    display: none;
+  }
+}
 .progress-track {
   height: 3px;
   border-radius: 3px;

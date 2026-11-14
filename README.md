@@ -10,9 +10,10 @@ agent-designed surface details.
   Set precise dimensions, ceiling height, and wall thickness. Plans may be concave.
 - Explore the resulting floor, walls, and ceiling in 3D with orbit, zoom, cutaway,
   surface selection, and a ceiling toggle.
-- Edit a separate plan for each floor, ceiling, or wall. Draw features and openings,
-  enter exact dimensions, and add design instructions. Wall openings cut through
-  the room shell.
+- Edit a separate plan for each floor, ceiling, or wall. Sketch freehand, add
+  rectangles, ellipses, lines, openings, and text. Select, drag, resize, duplicate,
+  or erase items; use the item list to find and delete them. Undo/redo is kept per
+  surface. Wall openings cut through the room shell.
 - Queue surface designs and see queued, running, completed, failed, cancelled, and
   outdated states, plus worker progress and messages.
 - Inspect each agent run's saved instructions, timeline, summary, and applied
@@ -21,6 +22,13 @@ agent-designed surface details.
   to locate and highlight it. Floor designs also appear on the 2D floor plan.
 - Switch between light, dark, and system themes. Theme tokens live in
   `apps/web/src/styles.css`.
+
+Surface editor shortcuts: `V` select, `B` draw, `R` rectangle, `E` ellipse, `L`
+line, `O` opening, `T` text, `X` eraser, and `H` pan. Hold Space to pan, use the
+wheel to zoom, or press `0` to fit. Shift-click or drag a selection box to select
+multiple items. Delete/Backspace removes selected items, Ctrl/⌘ D duplicates,
+Ctrl/⌘ Z undoes, and Ctrl/⌘ Shift Z redoes. Arrow keys nudge selected items;
+Shift moves them farther. Double-click an item or press Enter to edit its label.
 
 The room shell follows the measured footprint. A separate agent interprets each
 surface plan and decides its actual design and 3D geometry. Completed results

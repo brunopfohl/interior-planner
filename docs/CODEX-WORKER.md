@@ -110,6 +110,13 @@ design for that surface.
   complete polygon for concave boundaries. Avoid placing geometry outside it.
 - A feature's 2D X/Y coordinates use the surface's local X/Y frame. The UI's
   vertical screen axis is inverted so its origin is bottom-left.
+- Plan items may be `feature` (rectangle), `opening`, `ellipse`, `text`, `stroke`
+  (freehand), or `line`. Each has a bounding rectangle in metres. Stroke/line
+  `points` are normalized coordinates inside that rectangle: actual local X is
+  `item.x + point.x * item.width`, and actual local Y is
+  `item.y + point.y * item.height`. `color` and `strokeWidth` describe the sketch
+  ink; labels and text describe intent. Interpret the drawing as a design sketch,
+  rather than automatically turning every pen stroke into a physical object.
 - Return `box`, `cylinder`, or `sphere` primitives with a six-digit hex color,
   roughness, and metalness. Compose them into the intended design. The app
   validates and renders this scene data; it never runs generated JavaScript.
