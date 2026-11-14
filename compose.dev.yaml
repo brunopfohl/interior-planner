@@ -1,0 +1,8 @@
+services:
+  web:
+    build:
+      context: .
+      target: development
+    volumes:
+      - ./apps/web/src:/app/apps/web/src:ro
+      - ./packages/db/src:/app/packages/db/src:ro

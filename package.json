@@ -1,0 +1,16 @@
+{
+  "name": "interior-planner",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.4.4",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "bun run --filter @interior-planner/web dev",
+    "build": "bun run --filter @interior-planner/web build",
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.4",
+    "typescript": "~6.0.3"
+  }
+}

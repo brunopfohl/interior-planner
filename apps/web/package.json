@@ -1,0 +1,12 @@
+{
+  "name": "@interior-planner/web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --hot src/index.ts",
+    "build": "bun build src/index.ts --target=bun --production --minify --outdir=dist"
+  },
+  "dependencies": {
+    "@interior-planner/db": "workspace:*"
+  }
+}

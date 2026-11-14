@@ -1,0 +1,26 @@
+name: CI
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and start the stack
+        run: |
+          cp .env.example .env
+          docker compose up --build --wait --wait-timeout 120
+      - name: Verify HTTP and database readiness
+        run: |
+          curl --fail http://localhost:3000/
+          curl --fail http://localhost:3000/health
+      - name: Container logs
+        if: failure()
+        run: docker compose logs
+      - name: Stop containers
+        if: always()
+        run: docker compose down --volumes
