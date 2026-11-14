@@ -8,6 +8,7 @@ import {
   type FloorPlan,
   type Job,
   type SurfacePlan,
+  type SceneResult,
 } from "@interior-planner/shared";
 import { Button } from "./ui/button";
 
@@ -20,6 +21,7 @@ export function RoomScene({
   showDesigns,
   onToggleDesigns,
   focusObject,
+  previewDesigns = [],
 }: {
   plan: FloorPlan;
   surfacePlans: Record<string, SurfacePlan>;
@@ -29,6 +31,7 @@ export function RoomScene({
   showDesigns: boolean;
   onToggleDesigns: () => void;
   focusObject: { surfaceId: string; objectId: string; nonce: number } | null;
+  previewDesigns?: { surfaceId: string; result: SceneResult }[];
 }) {
   const host = useRef<HTMLDivElement>(null),
     reset = useRef<() => void>(() => {}),
@@ -66,6 +69,7 @@ export function RoomScene({
     dark,
     showDesigns,
     focusObject,
+    previewDesigns,
   });
   useEffect(() => {
     const element = host.current!;
@@ -242,7 +246,7 @@ export function RoomScene({
       groups.set(surface.id, group);
       scene.add(group);
     }
-    const latest = new Map<string, Job>();
+    const latest = new Map<string, { result: SceneResult }>();
     for (const job of jobs)
       if (
         job.status === "completed" &&
@@ -250,7 +254,10 @@ export function RoomScene({
         showDesigns &&
         !latest.has(job.surfaceId)
       )
-        latest.set(job.surfaceId, job);
+        latest.set(job.surfaceId, { result: job.result });
+    if (showDesigns)
+      for (const design of previewDesigns)
+        latest.set(design.surfaceId, { result: design.result });
     for (const [id, job] of latest) {
       const group = groups.get(id);
       if (!group) continue;

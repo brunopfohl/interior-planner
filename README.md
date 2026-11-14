@@ -6,6 +6,9 @@ agent-designed surface details.
 ## Use the app
 
 - Create, search, open, rename, and delete interiors saved in PostgreSQL.
+- Import from floor-plan images or room photos through a persistent Codex chat.
+  Review questions, estimated dimensions, assumptions and 2D/3D proposals, then
+  create an interior from the approved proposal. References stay in PostgreSQL.
 - Draw a floor outline or reshape it by dragging corners and adding vertices.
   Set precise dimensions, ceiling height, and wall thickness. Plans may be concave.
 - Explore the resulting floor, walls, and ceiling in 3D with orbit, zoom, cutaway,
@@ -125,7 +128,8 @@ with material properties; arbitrary mesh or GLTF imports are not implemented.
 Image builds run TypeScript checks, geometry and output-validation tests, and the
 production build. CI also boots PostgreSQL and exercises interior persistence,
 revision conflicts, concurrent queue claims, heartbeats, completion, cancellation,
-and stale-result protection.
+and stale-result protection. Import checks cover image uploads, chat snapshots,
+clarification replies, proposal validation, and explicit application.
 
 Run the full API check against an **empty, isolated test database**, using a local
 worker secret in `.env`:
@@ -133,6 +137,7 @@ worker secret in `.env`:
 ```sh
 PORT=3001 docker compose -p interior-planner-test up --build --wait
 AGENT_API_URL=http://localhost:3001 bun scripts/smoke.ts
+AGENT_API_URL=http://localhost:3001 bun scripts/import-smoke.ts
 PORT=3001 docker compose -p interior-planner-test down --volumes
 ```
 

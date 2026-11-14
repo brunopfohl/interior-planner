@@ -10,10 +10,12 @@ const server = Bun.serve({
   hostname: "0.0.0.0",
   port: Number(Bun.env.PORT ?? 3000),
   development: Bun.env.NODE_ENV !== "production",
-  maxRequestBodySize: 1_048_576,
+  maxRequestBodySize: 9 * 1024 * 1024,
   routes: {
     "/": homepage,
     "/interiors/*": homepage,
+    "/imports": homepage,
+    "/imports/*": homepage,
     "/health": async () => {
       try {
         await db`SELECT 1`;

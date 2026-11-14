@@ -23,6 +23,10 @@ jobs:
         run: |
           docker compose cp scripts/smoke.ts web:/tmp/interior-smoke.ts
           docker compose exec -T -e AGENT_API_URL=http://localhost:3000 web bun /tmp/interior-smoke.ts
+      - name: Verify image import and conversation lifecycle
+        run: |
+          docker compose cp scripts/import-smoke.ts web:/tmp/import-smoke.ts
+          docker compose exec -T -e AGENT_API_URL=http://localhost:3000 web bun /tmp/import-smoke.ts
       - name: Container logs
         if: failure()
         run: docker compose logs

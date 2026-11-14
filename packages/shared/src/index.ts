@@ -203,15 +203,12 @@ export type Interior = {
   updatedAt: string;
 };
 export type JobStatus =
-  | "queued"
-  | "running"
-  | "completed"
-  | "failed"
-  | "cancelled"
-  | "superseded";
+  "queued" | "running" | "completed" | "failed" | "cancelled" | "superseded";
 export type Job = {
   id: string;
-  interiorId: string;
+  interiorId: string | null;
+  kind: "surface" | "import";
+  importId: string | null;
   surfaceId: string;
   surfaceName: string;
   status: JobStatus;

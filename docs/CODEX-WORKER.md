@@ -60,6 +60,7 @@ network/tunnel or HTTPS; the default server is bound to localhost.
 
    Exit 2 means no work is available. The file contains `input`, `outputSchema`,
    the task ID, and a private `leaseToken`. Do not publish this file or log its token.
+
 2. Read `input.floorPlan`, `input.surface`, `input.surfacePlan`, and
    `input.instructions`. Interpret notes and drawn features as an interior designer.
    Choose the actual design, composition, depth, materials, and individual objects.
@@ -151,14 +152,50 @@ Example result shape (illustrative geometry, not an automatic design):
 
 All worker endpoints require `Authorization: Bearer <AGENT_TOKEN>`.
 
-| Method | Endpoint | Body |
-| --- | --- | --- |
-| GET | `/api/agent/schema` | — |
-| POST | `/api/agent/claim` | `{ "workerId": "codex-local" }` |
-| PATCH | `/api/agent/jobs/:id` | `{ "leaseToken": "...", "status": "running", "progress": 35, "message": "..." }` |
-| PATCH | `/api/agent/jobs/:id` | `{ "leaseToken": "...", "status": "completed", "result": { ... } }` |
-| PATCH | `/api/agent/jobs/:id` | `{ "leaseToken": "...", "status": "failed", "message": "..." }` |
+| Method | Endpoint              | Body                                                                             |
+| ------ | --------------------- | -------------------------------------------------------------------------------- |
+| GET    | `/api/agent/schema`   | —                                                                                |
+| POST   | `/api/agent/claim`    | `{ "workerId": "codex-local" }`                                                  |
+| PATCH  | `/api/agent/jobs/:id` | `{ "leaseToken": "...", "status": "running", "progress": 35, "message": "..." }` |
+| PATCH  | `/api/agent/jobs/:id` | `{ "leaseToken": "...", "status": "completed", "result": { ... } }`              |
+| PATCH  | `/api/agent/jobs/:id` | `{ "leaseToken": "...", "status": "failed", "message": "..." }`                  |
 
 Claims are atomic with PostgreSQL `FOR UPDATE SKIP LOCKED`, so multiple workers
 can consume the queue without receiving the same task. A worker can heartbeat a
 running task with progress 0–99; completion sets progress to 100.
+
+## Import scenes from images
+
+The same worker also handles `kind: "import"` tasks. Use **Import from images**
+on the interiors screen or **Image imports** in the sidebar. Upload up to six
+PNG, JPEG, or WebP references (8 MB each), then describe the space in chat.
+Reference bytes, messages, proposals and task state are stored in PostgreSQL,
+inside the existing Docker volume. Images are not written into the repository.
+They are sent to Codex when the worker processes a chat turn.
+
+The supervisor downloads the task's references with its worker credential,
+attaches them to `codex exec --image`, and supplies conversation history and the
+previous proposal. The credential is never included in the prompt or subprocess
+environment. Reference copies are removed from the temporary directory after the
+run. Replies may ask questions without proposing geometry. When a proposal is
+ready it includes the footprint, editable surface annotations, optional generated
+geometry, a summary, and explicit assumptions about estimated measurements.
+
+Review the plan and 3D preview, answer questions or request changes, then choose
+**Create interior from this proposal**. Only this step creates an interior and
+applies the reviewed surface designs. Further reference or chat changes make an
+older proposal ineligible for application. One active turn per import prevents
+racing replies; cancellation invalidates the running worker's lease.
+
+Photos cannot establish reliable scale by themselves. Supply a measured wall
+length and confirm estimated heights, openings and furniture dimensions. The
+current model represents one connected footprint with boundary walls; it does
+not represent disconnected rooms or internal partition walls.
+
+Manual worker clients must branch on the claimed `kind` and use that task's
+`outputSchema`. Import results contain `{message, questions, proposal}` rather
+than a surface result. Download each `input.images` reference from authenticated
+`GET /api/agent/images/:id`. The public conversation endpoints serve images only
+to the local workspace; do not expose this unauthenticated workspace publicly.
+`WORKER_STATE_DIR` may isolate local worker logs and locks for a separate test
+server. Local `.worker/` logs and proposals remain ignored by Git.

@@ -36,5 +36,24 @@ export async function migrate() {
     await sql`ALTER TABLE agent_jobs ADD COLUMN IF NOT EXISTS events jsonb NOT NULL DEFAULT '[]'::jsonb`;
     await sql`CREATE INDEX IF NOT EXISTS agent_jobs_queue_idx ON agent_jobs(created_at) WHERE status = 'queued'`;
     await sql`CREATE UNIQUE INDEX IF NOT EXISTS agent_jobs_active_surface_idx ON agent_jobs(interior_id, surface_id) WHERE status IN ('queued', 'running')`;
+    await sql`CREATE TABLE IF NOT EXISTS scene_imports (
+      id uuid PRIMARY KEY, name text NOT NULL DEFAULT 'Image import', revision integer NOT NULL DEFAULT 1,
+      interior_id uuid REFERENCES interiors(id) ON DELETE SET NULL,
+      created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
+    )`;
+    await sql`CREATE TABLE IF NOT EXISTS import_images (
+      id uuid PRIMARY KEY, import_id uuid NOT NULL REFERENCES scene_imports(id) ON DELETE CASCADE,
+      name text NOT NULL, mime text NOT NULL, size integer NOT NULL, data bytea NOT NULL, created_at timestamptz NOT NULL DEFAULT now()
+    )`;
+    await sql`CREATE TABLE IF NOT EXISTS import_messages (
+      id uuid PRIMARY KEY, import_id uuid NOT NULL REFERENCES scene_imports(id) ON DELETE CASCADE,
+      role text NOT NULL CHECK(role IN ('user','assistant')), content text NOT NULL, revision integer NOT NULL,
+      image_ids jsonb NOT NULL DEFAULT '[]', reply jsonb, created_at timestamptz NOT NULL DEFAULT now()
+    )`;
+    await sql`ALTER TABLE agent_jobs ALTER COLUMN interior_id DROP NOT NULL`;
+    await sql`ALTER TABLE agent_jobs ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'surface' CHECK(kind IN ('surface','import'))`;
+    await sql`ALTER TABLE agent_jobs ADD COLUMN IF NOT EXISTS import_id uuid REFERENCES scene_imports(id) ON DELETE CASCADE`;
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS agent_jobs_active_import_idx ON agent_jobs(import_id) WHERE status IN ('queued','running') AND kind = 'import'`;
+    await sql`CREATE INDEX IF NOT EXISTS import_messages_session_idx ON import_messages(import_id,created_at)`;
   });
 }

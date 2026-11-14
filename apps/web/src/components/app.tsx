@@ -9,6 +9,7 @@ import {
   CircleHelp,
   Clock3,
   FolderOpen,
+  ImagePlus,
   Layers3,
   LayoutGrid,
   Loader2,
@@ -53,6 +54,7 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { Editor } from "./editor";
+import { ImportChat, ImportHub } from "./imports";
 
 export type Notify = (message: string) => void;
 const statusNames: Record<Job["status"], string> = {
@@ -227,6 +229,8 @@ export function App() {
     if (to === "/") void load();
     return true;
   };
+  const importId = path.match(/^\/imports\/([^/]+)$/)?.[1];
+  const importsPage = path === "/imports" || !!importId;
   const roomId = path.match(/^\/interiors\/([^/]+)$/)?.[1];
   const activeJobs = jobs.filter(
     (j) => j.status === "queued" || j.status === "running",
@@ -274,7 +278,7 @@ export function App() {
         </div>
         <div className="nav-label">Workspace</div>
         <button
-          className={`nav-item ${section === "interiors" ? "active" : ""}`}
+          className={`nav-item ${section === "interiors" && !importsPage ? "active" : ""}`}
           aria-label="Interiors"
           onClick={() => {
             if (go("/")) setSection("interiors");
@@ -301,6 +305,16 @@ export function App() {
             </span>
           )}
         </button>
+        <button
+          aria-label="Image imports"
+          className={`nav-item ${importsPage ? "active" : ""}`}
+          onClick={() => {
+            if (go("/imports")) setSection("interiors");
+          }}
+        >
+          <ImagePlus className="size-4" />
+          <span className="nav-text">Image imports</span>
+        </button>
         <div className="sidebar-bottom">
           <div className="flex items-center gap-2 text-xs">
             <span className="status-dot" />
@@ -318,7 +332,21 @@ export function App() {
         </div>
       </aside>
       <main className="min-w-0">
-        {roomId ? (
+        {importId ? (
+          <ImportChat
+            key={importId}
+            id={importId}
+            go={go}
+            notify={notify}
+            onDirtyChange={setEditorDirty}
+            onApplied={async () => {
+              await load();
+              await loadJobs();
+            }}
+          />
+        ) : importsPage ? (
+          <ImportHub go={go} notify={notify} />
+        ) : roomId ? (
           <Editor
             key={roomId}
             id={roomId}
@@ -355,10 +383,28 @@ export function App() {
                         Plan the space. Shape the details. See it come together.
                       </p>
                     </div>
-                    <Button onClick={() => setCreating(true)}>
-                      <Plus />
-                      New interior
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={async () => {
+                          try {
+                            const s = await api<{ id: string }>("/imports", {
+                              method: "POST",
+                            });
+                            go(`/imports/${s.id}`);
+                          } catch (e: any) {
+                            notify(e.message);
+                          }
+                        }}
+                      >
+                        <ImagePlus />
+                        Import from images
+                      </Button>
+                      <Button onClick={() => setCreating(true)}>
+                        <Plus />
+                        New interior
+                      </Button>
+                    </div>
                   </div>
                   <div className="mt-9 mb-6 flex items-center justify-between gap-4 border-b pb-5">
                     <div className="relative w-full max-w-[280px]">
@@ -540,7 +586,8 @@ export function App() {
                   <p className="eyebrow mb-3">Behind the scenes</p>
                   <h1 className="page-heading">Agent queue</h1>
                   <p className="mt-3 text-[13px] subtle">
-                    Follow each surface from design instructions to 3D geometry.
+                    Follow image imports and surface designs from instructions
+                    to results.
                   </p>
                   <div className="mt-7 rounded-lg border p-4 flex items-center gap-3">
                     <Workflow className="size-4" />
@@ -574,11 +621,18 @@ export function App() {
                               className="text-sm font-medium flex gap-2 items-center"
                               onClick={() => {
                                 setSection("interiors");
-                                go(`/interiors/${task.interiorId}`);
+                                go(
+                                  task.kind === "import"
+                                    ? `/imports/${task.importId}`
+                                    : `/interiors/${task.interiorId}`,
+                                );
                               }}
                             >
                               {rooms.find((r) => r.id === task.interiorId)
-                                ?.name ?? "Interior"}
+                                ?.name ??
+                                (task.kind === "import"
+                                  ? "Image conversation"
+                                  : "Interior")}
                               <ChevronRight className="size-3 subtle" />
                               {task.surfaceName}
                             </button>
@@ -596,9 +650,15 @@ export function App() {
                             variant="outline"
                             size="sm"
                             className="mt-3 text-xs"
-                            onClick={() => setInspectedTask(task)}
+                            onClick={() =>
+                              task.kind === "import"
+                                ? go(`/imports/${task.importId}`)
+                                : setInspectedTask(task)
+                            }
                           >
-                            Inspect run
+                            {task.kind === "import"
+                              ? "Open conversation"
+                              : "Inspect run"}
                           </Button>
                           <div className="mt-3 flex justify-between text-[10px] subtle">
                             <span>

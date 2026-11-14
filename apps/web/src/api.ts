@@ -1,3 +1,6 @@
+import { ApiError, body, uuid } from "./http";
+import { importRoutes, updateImportJob } from "./import-api";
+import { importReplyJsonSchema } from "@interior-planner/shared/imports";
 import { db } from "@interior-planner/db";
 import { isDeepStrictEqual } from "node:util";
 import { timingSafeEqual } from "node:crypto";
@@ -15,14 +18,6 @@ import {
 } from "@interior-planner/shared";
 
 type Row = Record<string, any>;
-class ApiError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
 function interior(row: Row): Interior {
   return {
     id: row.id,
@@ -39,6 +34,8 @@ function job(row: Row): Job {
   return {
     id: row.id,
     interiorId: row.interior_id,
+    kind: row.kind ?? "surface",
+    importId: row.import_id ?? null,
     surfaceId: row.surface_id,
     surfaceName: row.surface_name,
     status: row.status,
@@ -49,25 +46,16 @@ function job(row: Row): Job {
     revision: row.revision,
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
-    result: row.status === "completed" ? row.result : null,
-    objectCount: row.result?.objects?.length ?? 0,
+    result:
+      row.kind !== "import" && row.status === "completed" ? row.result : null,
+    objectCount:
+      row.kind === "import"
+        ? (row.result?.proposal?.designs?.reduce(
+            (n: number, d: any) => n + d.result.objects.length,
+            0,
+          ) ?? 0)
+        : (row.result?.objects?.length ?? 0),
   };
-}
-function uuid(value: string) {
-  if (
-    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      value,
-    )
-  )
-    throw new ApiError(400, "Invalid ID");
-  return value;
-}
-async function body(req: Request): Promise<any> {
-  try {
-    return await req.json();
-  } catch {
-    throw new ApiError(400, "Expected a JSON request body");
-  }
 }
 async function expireLeases() {
   await db`UPDATE agent_jobs SET status = CASE WHEN attempt >= 3 THEN 'failed' ELSE 'queued' END,
@@ -100,6 +88,14 @@ export async function handleApi(req: Request): Promise<Response> {
     if (!["GET", "HEAD"].includes(method) && origin && origin !== url.origin)
       throw new ApiError(403, "Cross-origin requests are not allowed");
     if (path.startsWith("/api/agent/")) requireAgent(req);
+    if (
+      path === "/api/imports" ||
+      path.startsWith("/api/imports/") ||
+      path.startsWith("/api/agent/images/")
+    ) {
+      const response = await importRoutes(req, job);
+      if (response) return response;
+    }
     if (path === "/api/settings" && method === "GET")
       return Response.json({ agentConfigured: Boolean(Bun.env.AGENT_TOKEN) });
     if (path === "/api/jobs" && method === "GET") {
@@ -288,7 +284,8 @@ export async function handleApi(req: Request): Promise<Response> {
         input: row.input,
         leaseToken: row.lease_token,
         leaseExpiresAt: row.lease_expires_at,
-        outputSchema: sceneResultJsonSchema,
+        outputSchema:
+          row.kind === "import" ? importReplyJsonSchema : sceneResultJsonSchema,
       });
     }
     const worker = path.match(/^\/api\/agent\/jobs\/([^/]+)$/);
@@ -312,6 +309,8 @@ export async function handleApi(req: Request): Promise<Response> {
         (typeof data.message !== "string" || data.message.length > 2000)
       )
         throw new ApiError(400, "Message must be at most 2000 characters");
+      const [record] = await db`SELECT kind FROM agent_jobs WHERE id=${id}`;
+      if (record?.kind === "import") return await updateImportJob(id, data, job);
       const result =
         data.status === "completed"
           ? sceneResultSchema.parse(data.result)
