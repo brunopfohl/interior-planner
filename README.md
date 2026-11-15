@@ -23,6 +23,10 @@ agent-designed surface details.
   objects. Failed runs clearly state that nothing was applied and retain rejected
   proposals. Download the report, compare before/after in 3D, or click an object
   to locate and highlight it. Floor designs also appear on the 2D floor plan.
+- Run design experiments from a saved interior: define custom metrics, units,
+  targets and priorities; generate alternatives with Codex; compare estimates
+  and 3D layouts; rank, shortlist and review them; save a favorite as a new
+  interior. Each experiment preserves its baseline and fixed shell.
 - Switch between light, dark, and system themes. Theme tokens live in
   `apps/web/src/styles.css`.
 
@@ -138,6 +142,7 @@ worker secret in `.env`:
 PORT=3001 docker compose -p interior-planner-test up --build --wait
 AGENT_API_URL=http://localhost:3001 bun scripts/smoke.ts
 AGENT_API_URL=http://localhost:3001 bun scripts/import-smoke.ts
+AGENT_API_URL=http://localhost:3001 bun scripts/experiment-smoke.ts
 PORT=3001 docker compose -p interior-planner-test down --volumes
 ```
 

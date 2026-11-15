@@ -14,6 +14,7 @@ const server = Bun.serve({
   routes: {
     "/": homepage,
     "/interiors/*": homepage,
+    "/experiments/*": homepage,
     "/imports": homepage,
     "/imports/*": homepage,
     "/health": async () => {

@@ -1,3 +1,5 @@
+import { experimentRoutes, updateExperimentJob } from "./experiment-api";
+import { experimentResultJsonSchema } from "@interior-planner/shared/experiments";
 import { ApiError, body, uuid } from "./http";
 import { importRoutes, updateImportJob } from "./import-api";
 import { importReplyJsonSchema } from "@interior-planner/shared/imports";
@@ -36,6 +38,7 @@ function job(row: Row): Job {
     interiorId: row.interior_id,
     kind: row.kind ?? "surface",
     importId: row.import_id ?? null,
+    experimentId: row.experiment_id ?? null,
     surfaceId: row.surface_id,
     surfaceName: row.surface_name,
     status: row.status,
@@ -47,14 +50,26 @@ function job(row: Row): Job {
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
     result:
-      row.kind !== "import" && row.status === "completed" ? row.result : null,
+      (row.kind ?? "surface") === "surface" && row.status === "completed"
+        ? row.result
+        : null,
     objectCount:
-      row.kind === "import"
-        ? (row.result?.proposal?.designs?.reduce(
-            (n: number, d: any) => n + d.result.objects.length,
+      row.kind === "experiment"
+        ? (row.result?.variants?.reduce(
+            (n: number, v: any) =>
+              n +
+              v.designs.reduce(
+                (sum: number, d: any) => sum + d.result.objects.length,
+                0,
+              ),
             0,
           ) ?? 0)
-        : (row.result?.objects?.length ?? 0),
+        : row.kind === "import"
+          ? (row.result?.proposal?.designs?.reduce(
+              (n: number, d: any) => n + d.result.objects.length,
+              0,
+            ) ?? 0)
+          : (row.result?.objects?.length ?? 0),
   };
 }
 async function expireLeases() {
@@ -96,6 +111,13 @@ export async function handleApi(req: Request): Promise<Response> {
       const response = await importRoutes(req, job);
       if (response) return response;
     }
+    if (
+      path.startsWith("/api/experiments/") ||
+      /^\/api\/interiors\/[^/]+\/experiments$/.test(path)
+    ) {
+      const response = await experimentRoutes(req, job);
+      if (response) return response;
+    }
     if (path === "/api/settings" && method === "GET")
       return Response.json({ agentConfigured: Boolean(Bun.env.AGENT_TOKEN) });
     if (path === "/api/jobs" && method === "GET") {
@@ -129,7 +151,7 @@ export async function handleApi(req: Request): Promise<Response> {
           await expireLeases();
           return Response.json(
             (
-              await db`SELECT * FROM agent_jobs WHERE interior_id = ${id} ORDER BY created_at DESC LIMIT 100`
+              await db`SELECT * FROM agent_jobs WHERE interior_id = ${id} AND kind='surface' ORDER BY created_at DESC LIMIT 100`
             ).map(job),
           );
         }
@@ -222,7 +244,7 @@ export async function handleApi(req: Request): Promise<Response> {
               ),
             );
             const jobs =
-              await sql`SELECT id, surface_id FROM agent_jobs WHERE interior_id = ${id} AND status IN ('queued','running','completed')`;
+              await sql`SELECT id, surface_id FROM agent_jobs WHERE interior_id = ${id} AND kind='surface' AND status IN ('queued','running','completed')`;
             for (const item of jobs) {
               if (geometryChanged || changed.has(item.surface_id))
                 await sql`UPDATE agent_jobs SET status = 'superseded', message = 'The plan changed; generate again to update this surface', events = events || jsonb_build_array(jsonb_build_object('at', now(), 'kind', 'superseded', 'message', 'The plan changed; this design is no longer applied')), lease_token = NULL, lease_expires_at = NULL, updated_at = now() WHERE id = ${item.id}`;
@@ -276,7 +298,7 @@ export async function handleApi(req: Request): Promise<Response> {
       await expireLeases();
       const [row] =
         await db`UPDATE agent_jobs SET status = 'running', worker_id = ${data.workerId}, lease_token = ${crypto.randomUUID()},
-        lease_expires_at = now() + interval '2 minutes', attempt = attempt + 1, progress = 5, message = 'Agent is reading the surface plan', updated_at = now()
+        lease_expires_at = now() + interval '2 minutes', attempt = attempt + 1, progress = 5, message = CASE WHEN kind='experiment' THEN 'Agent is reading experiment goals and the baseline' WHEN kind='import' THEN 'Agent is reading the image conversation' ELSE 'Agent is reading the surface plan' END, updated_at = now()
         WHERE id = (SELECT id FROM agent_jobs WHERE status = 'queued' ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING *`;
       if (!row) return new Response(null, { status: 204 });
       return Response.json({
@@ -285,7 +307,11 @@ export async function handleApi(req: Request): Promise<Response> {
         leaseToken: row.lease_token,
         leaseExpiresAt: row.lease_expires_at,
         outputSchema:
-          row.kind === "import" ? importReplyJsonSchema : sceneResultJsonSchema,
+          row.kind === "experiment"
+            ? experimentResultJsonSchema
+            : row.kind === "import"
+              ? importReplyJsonSchema
+              : sceneResultJsonSchema,
       });
     }
     const worker = path.match(/^\/api\/agent\/jobs\/([^/]+)$/);
@@ -310,7 +336,10 @@ export async function handleApi(req: Request): Promise<Response> {
       )
         throw new ApiError(400, "Message must be at most 2000 characters");
       const [record] = await db`SELECT kind FROM agent_jobs WHERE id=${id}`;
-      if (record?.kind === "import") return await updateImportJob(id, data, job);
+      if (record?.kind === "experiment")
+        return await updateExperimentJob(id, data, job);
+      if (record?.kind === "import")
+        return await updateImportJob(id, data, job);
       const result =
         data.status === "completed"
           ? sceneResultSchema.parse(data.result)

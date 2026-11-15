@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowDownUp,
   ArrowLeft,
@@ -9,6 +9,7 @@ import {
   CircleHelp,
   Clock3,
   FolderOpen,
+  FlaskConical,
   ImagePlus,
   Layers3,
   LayoutGrid,
@@ -55,6 +56,7 @@ import {
 } from "./ui/dropdown-menu";
 import { Editor } from "./editor";
 import { ImportChat, ImportHub } from "./imports";
+import { ExperimentHub, ExperimentPage } from "./experiments";
 
 export type Notify = (message: string) => void;
 const statusNames: Record<Job["status"], string> = {
@@ -173,6 +175,11 @@ export function App() {
   const [deleteRoom, setDeleteRoom] = useState<Interior | null>(null),
     [agentConfigured, setAgentConfigured] = useState(false);
   const [editorDirty, setEditorDirty] = useState(false);
+  const dirtyRef = useRef(false);
+  const reportDirty = useCallback((dirty: boolean) => {
+    dirtyRef.current = dirty;
+    setEditorDirty(dirty);
+  }, []);
   const [inspectedTask, setInspectedTask] = useState<Job | null>(null);
   const notify = useCallback((message: string) => setToast(message), []);
   useEffect(() => {
@@ -210,25 +217,35 @@ export function App() {
   }, [loadJobs]);
   useEffect(() => {
     const pop = () => {
-      if (editorDirty && !confirm("Leave without saving your changes?")) {
+      if (dirtyRef.current && !confirm("Leave without saving your changes?")) {
         history.pushState(null, "", path);
         return;
       }
       setPath(location.pathname);
-      setEditorDirty(false);
+      reportDirty(false);
     };
     window.addEventListener("popstate", pop);
     return () => window.removeEventListener("popstate", pop);
   }, [editorDirty, path]);
   const go = (to: string) => {
-    if (editorDirty && !confirm("Leave without saving your changes?"))
+    if (dirtyRef.current && !confirm("Leave without saving your changes?"))
       return false;
     history.pushState(null, "", to);
     setPath(to);
-    setEditorDirty(false);
+    reportDirty(false);
     if (to === "/") void load();
     return true;
   };
+  const experimentId = path.match(/^\/experiments\/([^/]+)$/)?.[1];
+  const experimentInteriorId = path.match(
+    /^\/interiors\/([^/]+)\/experiments$/,
+  )?.[1];
+  const taskPath = (task: Job) =>
+    task.kind === "experiment"
+      ? `/experiments/${task.experimentId}`
+      : task.kind === "import"
+        ? `/imports/${task.importId}`
+        : `/interiors/${task.interiorId}`;
   const importId = path.match(/^\/imports\/([^/]+)$/)?.[1];
   const importsPage = path === "/imports" || !!importId;
   const roomId = path.match(/^\/interiors\/([^/]+)$/)?.[1];
@@ -332,13 +349,30 @@ export function App() {
         </div>
       </aside>
       <main className="min-w-0">
-        {importId ? (
+        {experimentId ? (
+          <ExperimentPage
+            key={experimentId}
+            id={experimentId}
+            go={go}
+            notify={notify}
+            onDirtyChange={reportDirty}
+            onCopied={load}
+          />
+        ) : experimentInteriorId ? (
+          <ExperimentHub
+            key={experimentInteriorId}
+            interiorId={experimentInteriorId}
+            go={go}
+            notify={notify}
+            onDirtyChange={reportDirty}
+          />
+        ) : importId ? (
           <ImportChat
             key={importId}
             id={importId}
             go={go}
             notify={notify}
-            onDirtyChange={setEditorDirty}
+            onDirtyChange={reportDirty}
             onApplied={async () => {
               await load();
               await loadJobs();
@@ -354,10 +388,11 @@ export function App() {
             onBack={() => {
               if (go("/")) setSection("interiors");
             }}
+            onExperiments={() => go(`/interiors/${roomId}/experiments`)}
             onSaved={load}
             onJobsChanged={loadJobs}
             agentConfigured={agentConfigured}
-            onDirtyChange={setEditorDirty}
+            onDirtyChange={reportDirty}
           />
         ) : (
           <>
@@ -555,6 +590,14 @@ export function App() {
                                   <FolderOpen />
                                   Open interior
                                 </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    go(`/interiors/${room.id}/experiments`)
+                                  }
+                                >
+                                  <FlaskConical />
+                                  Experiments
+                                </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
                                   className="text-destructive"
@@ -621,11 +664,7 @@ export function App() {
                               className="text-sm font-medium flex gap-2 items-center"
                               onClick={() => {
                                 setSection("interiors");
-                                go(
-                                  task.kind === "import"
-                                    ? `/imports/${task.importId}`
-                                    : `/interiors/${task.interiorId}`,
-                                );
+                                go(taskPath(task));
                               }}
                             >
                               {rooms.find((r) => r.id === task.interiorId)
@@ -651,14 +690,16 @@ export function App() {
                             size="sm"
                             className="mt-3 text-xs"
                             onClick={() =>
-                              task.kind === "import"
-                                ? go(`/imports/${task.importId}`)
+                              task.kind !== "surface"
+                                ? go(taskPath(task))
                                 : setInspectedTask(task)
                             }
                           >
-                            {task.kind === "import"
-                              ? "Open conversation"
-                              : "Inspect run"}
+                            {task.kind === "experiment"
+                              ? "Open experiment"
+                              : task.kind === "import"
+                                ? "Open conversation"
+                                : "Inspect run"}
                           </Button>
                           <div className="mt-3 flex justify-between text-[10px] subtle">
                             <span>

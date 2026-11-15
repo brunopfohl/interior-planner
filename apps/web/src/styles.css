@@ -745,3 +745,37 @@
     height: 350px;
   }
 }
+
+.experiment-page {
+  max-width: 1700px;
+}
+.experiment-table {
+  border-collapse: collapse;
+  width: 100%;
+  text-align: left;
+  font-size: 12px;
+}
+.experiment-table th,
+.experiment-table td {
+  padding: 16px;
+  min-width: 190px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.experiment-table thead th {
+  background: var(--muted);
+  font-weight: 500;
+}
+.experiment-table tbody th {
+  font-weight: 500;
+  min-width: 210px;
+  background: var(--background);
+}
+.experiment-table tr:last-child > * {
+  border-bottom: 0;
+}
+.experiment-table th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}

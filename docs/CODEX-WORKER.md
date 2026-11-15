@@ -199,3 +199,41 @@ than a surface result. Download each `input.images` reference from authenticated
 to the local workspace; do not expose this unauthenticated workspace publicly.
 `WORKER_STATE_DIR` may isolate local worker logs and locks for a separate test
 server. Local `.worker/` logs and proposals remain ignored by Git.
+
+## Design experiments
+
+Open **Experiments** from a saved interior. An experiment takes an immutable
+snapshot of its footprint, annotations and currently completed surface designs.
+It stores goals, free-form constraints and 1–12 custom numeric metrics. Each
+metric defines its name, unit, estimation method, direction (maximize, minimize,
+or distance to a target), and priority from 1 to 10. Ratings are supported by
+explicitly defining a numeric scale and what each value means.
+
+`kind: "experiment"` tasks request 1–4 distinct alternatives per batch, up to
+24 alternatives per experiment. The worker receives the baseline, metrics,
+constraints, an optional direction for the batch, and summaries of prior designs.
+The result contains baseline evaluations (first batch only) and complete designs
+and metric evaluations for every alternative. Footprint, ceiling and existing
+opening annotations cannot be changed by the result schema. Other constraints,
+clearances and constructibility are interpreted by Codex; there is no physical
+solver or certification. Geometry remains declarative primitives.
+
+Every metric evaluation contains a numeric value or null, explanation and
+confidence. These are agent estimates. Unsupported values must be null; they
+never get filled with invented zeros. The baseline evaluation is retained for
+later batches. Unknown baseline values consequently remain unknown; create a
+new experiment from an improved source to change that comparison basis.
+
+The UI compares baseline deltas and relative weighted metric scores. Each metric
+is normalized across baseline and all alternatives; target metrics use absolute
+distance to the configured target. Equal values tie. A candidate missing any
+metric is unscored. Relative scores can change when a new batch changes the
+comparison range. Manual ranking, shortlist stars and review notes express user
+preferences separately from these scores.
+
+Generation uses the same authenticated leased queue, cancellation and one-repair
+validation loop. New source edits do not mutate a snapshot or invalidate its
+experiment jobs. Ranking and reviews use revision checks to prevent stale tabs
+from overwriting new results. Saving an alternative creates a new independent
+interior with the snapshot shell and reviewed generated designs; it never
+replaces the source. Deleting an experiment keeps such saved interiors.

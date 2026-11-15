@@ -207,7 +207,8 @@ export type JobStatus =
 export type Job = {
   id: string;
   interiorId: string | null;
-  kind: "surface" | "import";
+  kind: "surface" | "import" | "experiment";
+  experimentId: string | null;
   importId: string | null;
   surfaceId: string;
   surfaceName: string;

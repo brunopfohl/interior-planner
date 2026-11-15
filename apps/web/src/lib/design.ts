@@ -14,6 +14,8 @@ export function taskMessage(message: string) {
   return message;
 }
 export function outcome(task: Job) {
+  if (task.kind === "experiment" && task.status === "completed")
+    return "Alternatives ready — compare and rank in the experiment";
   if (task.kind === "import" && task.status === "completed")
     return "Codex replied — review the import conversation";
   if (task.status === "failed") return "No changes applied";

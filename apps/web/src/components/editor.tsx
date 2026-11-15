@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Clock3,
   DoorOpen,
+  FlaskConical,
   Layers,
   Layers3,
   Loader2,
@@ -113,6 +114,7 @@ function content(room: Interior) {
 export function Editor({
   id,
   onBack,
+  onExperiments,
   notify,
   onSaved,
   onJobsChanged,
@@ -121,6 +123,7 @@ export function Editor({
 }: {
   id: string;
   onBack: () => void;
+  onExperiments: () => void;
   notify: Notify;
   onSaved: () => unknown;
   onJobsChanged: () => unknown;
@@ -438,6 +441,20 @@ export function Editor({
             </button>
           ))}
         </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={dirty}
+          title={
+            dirty
+              ? "Save your changes before opening experiments"
+              : "Explore alternative designs for this interior"
+          }
+          onClick={onExperiments}
+        >
+          <FlaskConical />
+          Experiments
+        </Button>
         <span className="text-[10px] subtle hide-mobile">
           {area(draft.plan.points).toFixed(1)} m²<span className="mx-2">/</span>
           {draft.plan.points.length} walls
